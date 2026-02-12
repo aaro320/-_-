@@ -15,20 +15,20 @@
 
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(2, 2, 5, 0.9);
+            background: rgba(2, 2, 5, 0.7);
             display: flex; flex-direction: column; justify-content: center;
             align-items: center; z-index: 1000; cursor: pointer;
             transition: opacity 1s ease;
         }
-        #overlay h1 { color: #ffb7d5; font-size: 3em; letter-spacing: 2px; }
-        #overlay p { color: rgba(255, 255, 255, 0.5); font-size: 1.2em; font-family: 'Sacramento', cursive; }
+        #overlay h1 { color: #ffb7d5; font-size: 3em; letter-spacing: 2px; margin-bottom: 10px; }
+        #overlay p { color: rgba(255, 255, 255, 0.6); font-size: 1.4em; font-family: 'Sacramento', cursive; }
     </style>
 </head>
 <body>
 
 <div id="overlay">
     <h1>For You ^⁠_⁠^</h1>
-    <p>( Click to enter)</p>
+    <p>( Click to enter )</p>
 </div>
 
 <audio id="bgMusic" loop>
@@ -44,23 +44,6 @@ const music = document.getElementById('bgMusic');
 const overlay = document.getElementById('overlay');
 
 let gardenStarted = false;
-
-overlay.addEventListener('click', () => {
-    overlay.style.opacity = '0';
-    setTimeout(() => overlay.style.display = 'none', 1000);
-    music.play();
-    gardenStarted = true;
-    startTime = Date.now();
-});
-
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    message.fontSize = Math.min(canvas.width / 10, 60);
-}
-
-const random = (min, max) => Math.random() * (max - min) + min;
-
 let startTime = Date.now();
 let heartTriggered = false;
 let flowers = [];
@@ -68,6 +51,7 @@ let butterflies = [];
 let particles = [];
 let clouds = [];
 let shootingStars = [];
+let stars = [];
 
 const message = {
     line1: "Happy Valentines Day,",
@@ -77,7 +61,54 @@ const message = {
     fontSize: 0
 };
 
-// --- REALISTIC SMOKY CLOUDS (PINK) ---
+overlay.addEventListener('click', () => {
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.style.display = 'none', 1000);
+    music.play().catch(e => console.log("Music play blocked"));
+    gardenStarted = true;
+    startTime = Date.now();
+});
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    message.fontSize = Math.min(canvas.width / 10, 60);
+    initStars(); // Re-init stars on resize to fill screen
+}
+
+const random = (min, max) => Math.random() * (max - min) + min;
+
+// --- OBJECT CLASSES ---
+
+class Star {
+    constructor() {
+        this.x = random(0, canvas.width);
+        this.y = random(0, canvas.height);
+        this.size = random(0.2, 1.2);
+        this.blinkSpeed = random(0.01, 0.03);
+        this.alpha = random(0.1, 1);
+        this.growing = true;
+    }
+    update() {
+        if (this.growing) {
+            this.alpha += this.blinkSpeed;
+            if (this.alpha >= 1) this.growing = false;
+        } else {
+            this.alpha -= this.blinkSpeed;
+            if (this.alpha <= 0.1) this.growing = true;
+        }
+    }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
 class Cloud {
     constructor() {
         this.reset();
@@ -149,7 +180,6 @@ class ShootingStar {
     }
 }
 
-// RESTORED ORIGINAL CLASSES (Particle, Butterfly, Flower)
 class Particle {
     constructor(x, y, hue) {
         this.x = x; this.y = y;
@@ -183,11 +213,11 @@ class Butterfly {
     reset() {
         this.x = random(0, canvas.width);
         this.y = random(0, canvas.height);
-        this.vx = random(-1.5, 1.5);
-        this.vy = random(-1, 1);
+        this.vx = random(-1.2, 1.2);
+        this.vy = random(-0.8, 0.8);
         this.size = random(2, 4);
         this.wingAngle = 0;
-        this.hue = random(180, 280); 
+        this.hue = random(200, 320); 
     }
     update() {
         this.x += this.vx; this.y += this.vy;
@@ -201,7 +231,7 @@ class Butterfly {
         ctx.translate(this.x, this.y);
         ctx.rotate(Math.atan2(this.vy, this.vx));
         ctx.fillStyle = `hsl(${this.hue}, 100%, 75%)`;
-        ctx.shadowBlur = 10; ctx.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
+        ctx.shadowBlur = 12; ctx.shadowColor = `hsl(${this.hue}, 100%, 60%)`;
         ctx.beginPath();
         ctx.ellipse(0, -ws/2, ws, this.size, 0.5, 0, Math.PI * 2);
         ctx.ellipse(0, ws/2, ws, this.size, -0.5, 0, Math.PI * 2);
@@ -310,11 +340,11 @@ class Flower {
     }
 }
 
-function getHeartPoint(t) {
-    const r = Math.min(canvas.width, canvas.height) / 55; 
-    const x = 16 * Math.pow(Math.sin(t), 3);
-    const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-    return { x: x * r, y: -y * r };
+// --- HELPERS ---
+
+function initStars() {
+    stars = [];
+    for (let i = 0; i < 150; i++) stars.push(new Star());
 }
 
 function spawnHeart() {
@@ -322,8 +352,12 @@ function spawnHeart() {
     const centerX = canvas.width / 2;
     const centerY = canvas.height * 0.55;
     for (let t = 0; t < Math.PI * 2; t += 0.45) {
-        const pos = getHeartPoint(t);
-        flowers.push(new Flower(true, centerX + pos.x, centerY + pos.y));
+        const pos = {
+            x: 16 * Math.pow(Math.sin(t), 3),
+            y: -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t))
+        };
+        const r = Math.min(canvas.width, canvas.height) / 55;
+        flowers.push(new Flower(true, centerX + pos.x * r, centerY + pos.y * r));
     }
 }
 
@@ -343,7 +377,6 @@ function drawGrass() {
 function drawMessage() {
     if (!message.visible) return;
     ctx.save();
-    // APPLYING DANCING SCRIPT TO THE CANVAS MESSAGE
     ctx.font = `${message.fontSize}px "Dancing Script", cursive`;
     ctx.textAlign = "center";
     ctx.shadowBlur = 20;
@@ -359,9 +392,11 @@ function drawMessage() {
     if (elapsed > 20 && message.opacity > 0) message.opacity -= 0.01;
 }
 
-// Initializing
+// --- INITIALIZE & ANIMATE ---
+
+initStars();
 for(let i=0; i<10; i++) flowers.push(new Flower());
-for(let i=0; i<6; i++) butterflies.push(new Butterfly());
+for(let i=0; i<12; i++) butterflies.push(new Butterfly());
 for(let i=0; i<4; i++) clouds.push(new Cloud());
 for(let i=0; i<5; i++) shootingStars.push(new ShootingStar());
 
@@ -369,6 +404,10 @@ function animate() {
     ctx.fillStyle = 'rgba(2, 2, 8, 0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
+    // Always draw stars and butterflies
+    stars.forEach(s => { s.update(); s.draw(); });
+    butterflies.forEach(b => { b.update(); b.draw(); });
+
     if (gardenStarted) {
         shootingStars.forEach(s => { s.update(); s.draw(); });
         clouds.forEach(c => { c.update(); c.draw(); });
@@ -382,7 +421,6 @@ function animate() {
         flowers.forEach(f => { f.update(); f.draw(); });
         
         drawMessage(); 
-        butterflies.forEach(b => { b.update(); b.draw(); });
         
         particles = particles.filter(p => p.life > 0);
         particles.forEach(p => { p.update(); p.draw(); });
